@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Management</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="./icon.png">
+  <!-- Custom CSS -->
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      color: #444;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: #fff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    table th, table td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    table th {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    tr:nth-child(even) { background-color: #f2f2f2; }
+
+    button {
+      padding: 6px 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    form {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    input, button {
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    input {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .edit-btn {
+      background-color: #2196F3;
+    }
+
+    .delete-btn {
+      background-color: #f44336;
+    }
+  </style>
+</head>
+<body>
+  <h1>Token Management</h1>
+
+  <!-- Table to display tokens -->
+  <table id="tokenTable">
+    <thead>
+      <tr>
+        <th>Name of User</th>
+        <th>Phone Number</th>
+        <th>Start Date</th>
+        <th>End Date</th>
+        <th>Token ID</th>
+        <th>Is Login</th>
+        <th>Is Run</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Table rows will be dynamically generated -->
+    </tbody>
+  </table>
+
+  <!-- Form to add/edit a token -->
+  <form id="tokenForm">
+    <div>
+      <label for="nameOfUser">Name of User:</label>
+      <input type="text" id="nameOfUser" placeholder="Name of User" required>
+    </div>
+    
+    <div>
+      <label for="phoneNumber">Phone Number:</label>
+      <input type="text" id="phoneNumber" placeholder="Phone Number" required>
+    </div>
+    
+    <div>
+      <label for="startDate">Start Date:</label>
+      <input type="date" id="startDate" required>
+    </div>
+    
+    <div>
+      <label for="endDate">End Date:</label>
+      <input type="date" id="endDate" required>
+    </div>
+    
+    <input type="hidden" id="idOfToken">
+    
+    <button type="submit" id="submitButton">Add Token</button>
+  </form>
+  
+
+  <!-- SweetAlert2 Library -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/7.7.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.7.0/firebase-firestore.js"></script>
+
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyAan3pObBDhMpdnY72t-IGntTMI6GuFDO8",
+        authDomain: "chatbotadminpage.firebaseapp.com",
+        projectId: "chatbotadminpage",
+        storageBucket: "chatbotadminpage.firebasestorage.app",
+        messagingSenderId: "574473127229",
+        appId: "1:574473127229:web:c69f4fae073948a1ed7154"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const tokenTableBody = document.querySelector("#tokenTable tbody");
+    const tokenForm = document.getElementById("tokenForm");
+    const submitButton = document.getElementById("submitButton");
+
+    let editMode = false;
+    let editTokenId = null;
+
+    // Fetch and display tokens
+    function loadTokens() {
+      db.collection("tokens").onSnapshot(snapshot => {
+        tokenTableBody.innerHTML = ""; // Clear table
+        snapshot.forEach(doc => {
+          const token = doc.data();
+          const row = `
+            <tr>
+              <td>${token.nameOfUser}</td>
+              <td>${token.phoneNumber}</td>
+              <td>${token.startDate}</td>
+              <td>${token.endDate}</td>
+              <td>${doc.id}</td>
+              <td>${token.isLogin}</td>
+              <td>
+                ${token.isRun ? `<button class="stop-btn" style="background-color:#f39c12;" onclick="toggleRun('${doc.id}', false)">Stop</button>` : `<button class="run-btn" style="background-color:#28a745;" onclick="toggleRun('${doc.id}', true)">Run</button>`}
+              </td>
+              <td>
+                <button class="edit-btn" onclick="editToken('${doc.id}', '${token.nameOfUser}', '${token.phoneNumber}', '${token.startDate}', '${token.endDate}')">Edit</button>
+                <button class="delete-btn" onclick="deleteToken('${doc.id}')">Delete</button>
+              </td>
+            </tr>
+          `;
+          tokenTableBody.insertAdjacentHTML("beforeend", row);
+        });
+      });
+    }
+
+    // Add or update a token
+    tokenForm.addEventListener("submit", e => {
+      e.preventDefault();
+
+      const nameOfUser = document.getElementById("nameOfUser").value;
+      const phoneNumber = document.getElementById("phoneNumber").value;
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
+      const isLogin = false;
+      const isRun = false;
+
+      if (editMode) {
+        db.collection("tokens").doc(editTokenId).update({
+          nameOfUser,
+          phoneNumber,
+          startDate,
+          endDate
+        }).then(() => {
+          Swal.fire("Success!", "Token updated successfully!", "success");
+          resetForm();
+        });
+      } else {
+        db.collection("tokens").add({
+          nameOfUser,
+          phoneNumber,
+          startDate,
+          endDate,
+          isLogin,
+          isRun
+        }).then(() => {
+          Swal.fire("Success!", "Token added successfully!", "success");
+          resetForm();
+        });
+      }
+    });
+
+    // Delete a token
+    function deleteToken(id) {
+      Swal.fire({
+        title: "Are you sure?",
+        text: "You won't be able to recover this token!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "Yes, delete it!"
+      }).then((result) => {
+        if (result.isConfirmed) {
+          db.collection("tokens").doc(id).delete().then(() => {
+            Swal.fire("Deleted!", "Your token has been deleted.", "success");
+          });
+        }
+      });
+    }
+
+    // Edit a token
+    function editToken(id, nameOfUser, phoneNumber, startDate, endDate) {
+      document.getElementById("nameOfUser").value = nameOfUser;
+      document.getElementById("phoneNumber").value = phoneNumber;
+      document.getElementById("startDate").value = startDate;
+      document.getElementById("endDate").value = endDate;
+      editMode = true;
+      editTokenId = id;
+      submitButton.textContent = "Update Token";
+    }
+
+    // Reset form
+    function resetForm() {
+      tokenForm.reset();
+      editMode = false;
+      editTokenId = null;
+      submitButton.textContent = "Add Token";
+    }
+
+
+
+
+    // Toggle isRun State
+    function toggleRun(id, newValue) {
+    const action = newValue ? "Run" : "Stop";
+    Swal.fire({
+        title: `Are you sure you want to ${action}?`,
+        text: `The token will be marked as ${newValue ? 'Running' : 'Stopped'}.`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: `Yes, ${action}`,
+        cancelButtonText: "Cancel"
+    }).then((result) => {
+        if (result.isConfirmed) {
+        db.collection("tokens").doc(id).update({
+            isRun: newValue
+        }).then(() => {
+            Swal.fire("Success!", `Token is now ${newValue ? "Running" : "Stopped"}.`, "success");
+        }).catch(error => {
+            Swal.fire("Error!", "Could not update the token state.", "error");
+            console.error("Error updating isRun:", error);
+        });
+        }
+    });
+    }
+
+
+
+
+
+
+
+
+
+    // Load tokens on page load
+    loadTokens();
+  </script>
+</body>
+</html>
